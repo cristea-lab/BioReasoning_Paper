@@ -1,0 +1,164 @@
+B cell
+Bergmann glial cell
+CD14-low, CD16-positive monocyte
+CD14-positive monocyte
+CD14-positive, CD16-negative classical monocyte
+CD14-positive, CD16-positive monocyte
+CD16-negative, CD56-bright natural killer cell, human
+CD16-positive, CD56-dim natural killer cell, human
+CD1c-positive myeloid dendritic cell
+CD4-positive helper T cell
+CD4-positive, alpha-beta T cell
+CD4-positive, alpha-beta cytotoxic T cell
+CD4-positive, alpha-beta memory T cell
+CD8-alpha-alpha-positive, alpha-beta intraepithelial T cell
+CD8-positive, alpha-beta T cell
+CD8-positive, alpha-beta cytotoxic T cell
+CD8-positive, alpha-beta memory T cell
+IgA plasma cell
+IgG plasma cell
+L2/3-6 intratelencephalic projecting glutamatergic cortical neuron
+L6b glutamatergic cortical neuron
+Schwann cell
+T cell
+T follicular helper cell
+T-helper 17 cell
+T-helper 22 cell
+activated CD4-positive, alpha-beta T cell
+activated CD8-positive, alpha-beta T cell
+alpha-beta T cell
+alternatively activated macrophage
+alveolar macrophage
+alveolar type 1 fibroblast cell
+alveolar type 2 fibroblast cell
+amacrine cell
+astrocyte
+astrocyte of the cerebral cortex
+basal cell
+basal cell of epithelium of trachea
+blood vessel endothelial cell
+bronchus fibroblast of lung
+capillary endothelial cell
+cardiac muscle cell
+cardiac neuron
+caudal ganglionic eminence derived GABAergic cortical interneuron
+central memory CD4-positive, alpha-beta T cell
+central memory CD8-positive, alpha-beta T cell
+central nervous system macrophage
+chandelier pvalb GABAergic cortical interneuron
+ciliated columnar cell of tracheobronchial tree
+class switched memory B cell
+classical monocyte
+club cell
+conventional dendritic cell
+corticothalamic-projecting glutamatergic cortical neuron
+dendritic cell
+double negative T regulatory cell
+double negative thymocyte
+double-positive, alpha-beta thymocyte
+effector CD8-positive, alpha-beta T cell
+effector memory CD4-positive, alpha-beta T cell
+effector memory CD8-positive, alpha-beta T cell
+effector memory CD8-positive, alpha-beta T cell, terminally differentiated
+elicited macrophage
+endothelial cell
+endothelial cell of artery
+endothelial cell of lymphatic vessel
+enteric smooth muscle cell
+enterocyte
+enteroendocrine cell
+ependymal cell
+epithelial cell of proximal tubule
+erythroblast
+erythrocyte
+exhausted T cell
+fallopian tube secretory epithelial cell
+fibroblast of cardiac tissue
+foveolar cell of stomach
+gamma-delta T cell
+glutamatergic neuron
+goblet cell
+granulocyte
+granulosa cell
+hematopoietic stem cell
+immature B cell
+immature innate lymphoid cell
+inflammatory macrophage
+innate lymphoid cell
+intermediate monocyte
+intestine goblet cell
+intraepithelial lymphocyte
+keratinocyte
+kidney collecting duct intercalated cell
+kidney collecting duct principal cell
+kidney connecting tubule epithelial cell
+kidney distal convoluted tubule epithelial cell
+kidney interstitial fibroblast
+kidney loop of Henle thick ascending limb epithelial cell
+kidney loop of Henle thin ascending limb epithelial cell
+kidney loop of Henle thin descending limb epithelial cell
+lamp5 GABAergic cortical interneuron
+leukocyte
+luminal epithelial cell of mammary gland
+lung macrophage
+lung pericyte
+lymphocyte
+lymphoid lineage restricted progenitor cell
+macrophage
+mast cell
+mature B cell
+mature NK T cell
+mature T cell
+mature alpha-beta T cell
+mature gamma-delta T cell
+megakaryocyte-erythroid progenitor cell
+memory B cell
+memory T cell
+mesothelial cell
+microglial cell
+monocyte
+mucosal invariant T cell
+mucous neck cell
+myoepithelial cell of mammary gland
+naive B cell
+naive T cell
+naive thymus-derived CD4-positive, alpha-beta T cell
+naive thymus-derived CD8-positive, alpha-beta T cell
+nasal mucosa goblet cell
+natural killer cell
+near-projecting glutamatergic cortical neuron
+neuron
+neutrophil
+non-classical monocyte
+oligodendrocyte
+oligodendrocyte precursor cell
+paneth cell
+pericyte
+plasma cell
+plasmablast
+plasmacytoid dendritic cell
+platelet
+precursor B cell
+pro-B cell
+promonocyte
+pulmonary artery endothelial cell
+pvalb GABAergic cortical interneuron
+regulatory T cell
+renal interstitial pericyte
+respiratory basal cell
+respiratory hillock cell
+retina horizontal cell
+retinal cone cell
+retinal ganglion cell
+retinal rod cell
+smooth muscle cell
+sncg GABAergic cortical interneuron
+sst GABAergic cortical interneuron
+tracheal goblet cell
+tracheobronchial smooth muscle cell
+transitional stage B cell
+type I pneumocyte
+type II pneumocyte
+vascular associated smooth muscle cell
+vein endothelial cell
+vip GABAergic cortical interneuron

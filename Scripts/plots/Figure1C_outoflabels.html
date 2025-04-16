@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Figure 1B - Chain-of-Thought Mock</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .panel-container {
+      border: 2px solid #333;
+      padding: 10px;
+      width: 900px;
+      margin: 0 auto;
+    }
+    .panel-title {
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 1.2em;
+    }
+    .prompt-box, .cot-box, .label-box {
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    .label-box {
+      background-color: #eefaf1;
+      border-color: #a3d9b0;
+    }
+    .section-heading {
+      font-weight: bold;
+      margin: 10px 0;
+      color: #444;
+    }
+    .gene-list {
+      font-family: monospace;
+      font-size: 0.9em;
+      background-color: #fff;
+      border: 1px dashed #999;
+      padding: 5px;
+      line-height: 1.4em;
+    }
+    .highlight-gene {
+      background-color: #ffffcc;
+    }
+
+    /* Classes to highlight DeepSeek-R1 vs. DeepSeek-V3 */
+    .r1-box {
+      background-color: #e6f7ff; /* Light-blue-ish */
+      border-color: #99c2ff;
+    }
+    .v3-box {
+      background-color: #fff2f2; /* Light-pink-ish */
+      border-color: #ffb3b3;
+    }
+    /* Emphasize final "Cell type:" portion */
+    .celltype-bold {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panel-container">
+  <div class="panel-title">
+    Illustrative Chain-of-Thought (CoT) for Out-of-Label Zero-Shot Cell Type Annotation
+  </div>
+
+  <div class="section-heading">Prompt (Top Marker Genes):</div>
+  <div class="prompt-box">
+    <p><strong>Instruction:</strong> “You are an expert in single-cell biology.\n\nBelow is metadata for one cell, followed by a list of its genes in descending expression.\n\nTissue: islet of Langerhans\nDisease: normal\nDevelopment stage: 5-year-old human stage\n”</p>
+    <p class="gene-list">
+      Genes: PRSS1 CPA1 CPB1 PNLIP GP2 CELA3A REG1A CTRC AMY2A REG1B CTRB2 CPA2 CELA3B CELA2A CLPS CTRB1 PLA2G1B SYCN PRSS3 CELA2B SPINK1 CTRL PNLIPRP1 EEF1A1 P4HB KLK1 AMY2B RPL3 MT1G HSPA5 MT2A MALAT1 SERPINA3 KRT8 PDIA2 REG3G KRT18 H3-3B ACTG1... 
+      <br><br>
+      Here is a list of all possible cell types you must choose from:\nB cell\nBergmann glial cell\nCD14-low, CD16-positive monocyte\nCD14-positive monocyte\nCD14-positive, CD16-negative classical monocyte\nCD14-positive, CD16-positive monocyte\nCD16-negative, CD56-bright natural killer cell, human\nCD16-positive, CD56-dim natural killer cell, human\nCD1c-positive myeloid dendritic cell\nCD4-positive helper T cell\nCD4-positive, alpha-beta T cell\...
+      <br><br>
+      Please identify what cell type this might be.
+      <br>
+      Please pick the single best matching cell type from this list.
+      <br>
+      Keeping your response concise and clear.
+      <br>
+      At the end, use this format:
+      <br><br>
+      Cell type: X
+    </p>
+  </div>
+
+  <div class="section-heading">DeepSeek-R1 CoT Reasoning Output:</div>
+  <div class="cot-box r1-box">
+    <p><em>
+      "Okay, let's see. The metadata says the tissue is the islet of Langerhans, which I know is in the pancreas. The disease is normal, so it's a healthy cell. The development stage is a 5-year-old human, so not embryonic. Now looking at the genes listed.
+      <br><br>
+      The top genes are PRSS1, CPA1, CPB1, PNLIP, GP2, CELA3A, REG1A, CTRC, AMY2A, etc. These genes are mostly associated with digestive enzymes. PRSS1 is trypsinogen, which is a pancreatic enzyme. CPA1 and CPB1 are carboxypeptidases, also pancreatic enzymes. PNLIP is pancreatic lipase. AMY2A is amylase. These are all enzymes secreted by the pancreas, specifically the acinar cells, which produce digestive enzymes. 
+      <br><br>
+      REG1A and REG1B are regenerating islet-derived proteins, which I think are involved in regeneration but might be expressed in certain pancreatic cells. However, the islet of Langerhans contains endocrine cells like beta cells (insulin), alpha cells (glucagon), etc. But the genes here are more exocrine, related to digestive enzymes, which are produced by acinar cells. But wait, the tissue is listed as islet, which is endocrine. That's confusing. Maybe there's a mix-up? Or maybe the cell type is a ductal cell or something else in the pancreas?
+      <br><br>
+      Wait, looking again. The islet is endocrine, but maybe this cell is from a pancreatic sample that includes both endocrine and exocrine cells. Because acinar cells are part of the exocrine pancreas. However, the metadata says \"tissue: islet of Langerhans\", which should be endocrine. But the genes are exocrine. Hmm. Maybe there's contamination or misannotation?..."
+      <br><br>
+      (Reasoning continues...)
+      <br><br>
+      <span style='color:red;'>"The genes are acinar, but the options don't have it. The answer should be \"pancreatic acinar cell\", but it's not there. Therefore, I'll state that the cell type is pancreatic acinar cell, but since it's not in the list, there's no correct answer. However, the user requires a choice. But perhaps the user made a mistake, and the correct answer is \"acinar cell\", which is not listed. Given the lack of options, I'll have to go with that, but the user's list doesn't include it. Alternatively, maybe the answer is \"enterocyte\" with a note. But that's not correct. I'm sorry, but I can't find a matching cell type in the provided list. However, based on the genes, it's a pancreatic acinar cell."
+      </span>
+    </em></p>
+  </div>
+
+  <div class="section-heading">DeepSeek-R1 Completion Output:</div>
+  <div class="cot-box r1-box">
+    <p><em>
+      "The genes expressed (e.g., PRSS1, CPA1, PNLIP, AMY2A) are hallmark markers of pancreatic **acinar cells**, which produce digestive enzymes. However, the metadata specifies the tissue as the islet of Langerhans (endocrine pancreas), creating a discrepancy. Acinar cells belong to the exocrine pancreas, not the islet. None of the provided cell types explicitly match pancreatic acinar or exocrine cells. Given the gene profile and absence of endocrine markers (e.g., insulin, glucagon), the most plausible explanation is a misannotation in the metadata, with the cell originating from the exocrine pancreas."
+      <br><br>
+      <span class="celltype-bold">Cell type: (Not listed; likely pancreatic acinar cell)</span>”
+    </em></p>
+  </div>
+
+  <div class="section-heading">Ground Truth Cell Type:</div>
+  <div class="label-box">
+    <p><strong>Ground Truth:</strong> <em>acinar cell (not part of the given list of cell types)</em></p>
+  </div>
+</div>
+
+</body>
+</html>

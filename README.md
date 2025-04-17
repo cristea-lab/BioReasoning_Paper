@@ -34,7 +34,7 @@ pip install numpy pandas scanpy anndata torch scgpt cellnet networkx rdflib tqdm
 ```
 
 3. **Download pre‑computed outputs (optional but recommended)**\
-   Prompts, model completions and evaluation tables can be retrieved from Google Drive (\~5 GB):
+   Prompts, model completions and evaluation tables can be retrieved from Google Drive (\~1 GB of ZIP file):
 
 [https://drive.google.com/drive/folders/1egpLkd91Rlovhtrze2TW2-d29kz82_9J?usp=sharing](https://drive.google.com/drive/folders/1egpLkd91Rlovhtrze2TW2-d29kz82_9J?usp=sharing)
 

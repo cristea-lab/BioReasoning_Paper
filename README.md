@@ -82,7 +82,7 @@ If you use this code, please cite:
 ```bibtex
 @article{wang2025bioreasoning,
   title   = {Biological Reasoning with Reinforcement Learning through Natural Language Enables Generalizable Zero‑Shot Cell Type Annotations},
-  author  = {Wang, Xi and Tan, Runzi and Cristea, Simona},
+  author  = {Wang, Xi and Tan, Runzi and Wang, Bo and Cristea, Simona},
   year    = {2025},
   journal = {bioRxiv},
 }

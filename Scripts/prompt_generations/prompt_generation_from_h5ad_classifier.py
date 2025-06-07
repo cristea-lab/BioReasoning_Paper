@@ -2,7 +2,7 @@
 
 """
 Usage:
-  python create_prompts.py --input <input_file.h5ad> --output <output_file.ndjson>
+  python prompt_generation_from_h5ad_classifier.py --input <input_file.h5ad> --output <output_file.ndjson>
                            --cell-types-file <cell_types.txt>
                            [--top-genes TOP_GENES] [--all-nonzero]
 

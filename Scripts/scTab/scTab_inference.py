@@ -20,7 +20,7 @@ Prerequisites:
   - '/cristealab/rtan/scGPT/DSR1/sctab/merlin_cxg_2023_05_15_sf-log1p_minimal/categorical_lookup/cell_type.parquet'
 
 Usage:
-python script.py --input_h5ad INPUT_FILE --output_ndjson OUTPUT_FILE [OPTIONS]
+python scTab_inference.py --input_h5ad INPUT_FILE --output_ndjson OUTPUT_FILE [OPTIONS]
 
 Arguments:
   --input_h5ad        Path to input .h5ad file with raw counts (required)

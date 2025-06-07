@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Figure 1B - Chain-of-Thought Mock</title>
+  <title>Figure 1B – Chain-of-Thought Mock</title>
   <style>
     body {
       font-family: sans-serif;
@@ -11,7 +11,7 @@
     .panel-container {
       border: 2px solid #333;
       padding: 10px;
-      width: 800px;
+      width: 900px;
       margin: 0 auto;
     }
     .panel-title {
@@ -47,17 +47,14 @@
     .highlight-gene {
       background-color: #ffffcc;
     }
-
-    /* Classes to highlight DeepSeek-R1 vs. DeepSeek-V3 */
     .r1-box {
-      background-color: #e6f7ff; /* Light-blue-ish */
+      background-color: #e6f7ff;
       border-color: #99c2ff;
     }
     .v3-box {
-      background-color: #fff2f2; /* Light-pink-ish */
+      background-color: #fff2f2;
       border-color: #ffb3b3;
     }
-    /* Emphasize final "Cell type:" portion */
     .celltype-bold {
       font-weight: bold;
     }
@@ -72,52 +69,74 @@
 
   <div class="section-heading">Prompt (Top Marker Genes):</div>
   <div class="prompt-box">
-    <p><strong>Instruction:</strong> “You are an expert in single-cell biology.\n\nBelow is metadata for one cell, followed by a list of its genes in descending expression:\nTissue: blood\nDisease: COVID-19\nDevelopment stage: 4-year-old human stage\n”</p>
+    <p><strong>Instruction:</strong> "You are an expert in single-cell biology.
+    <br><br>
+    Below is metadata for one cell, followed by a list of its genes in descending expression:
+    <br><br>
+    Tissue: blood<br>
+    Disease: COVID-19<br>
+    Development stage: 4-year-old human stage"</p>
+
     <p class="gene-list">
-      Genes: B2M ACTB TMSB4X RPS27 RPL30 RPL41 MT-CO1 RPL28 EEF1A1 HLA-B RPL29 RPS14 RPS15A NKG7 RPLP1 RPS12 RPL32 RPL11 RPS27A HLA-C MT-CO2 TMSB10 RPS8 RPS26 RPS3... 
-      <br><br>
-      Please identify what cell type this might be, as granular and accurate as possible.
-      <br>
-      Keep your response concise and clear.
-      <br>
-      At the end of your response, strictly place the final lines in this format:
-      <br>
-      Cell type: X
+      "Genes: B2M ACTB TMSB4X RPS27 RPL30 RPL41 MT-CO1 RPL28 EEF1A1 HLA-B RPL29 RPS14 RPS15A NKG7 RPLP1 RPS12 RPL32 RPL11 RPS27A HLA-C MT-CO2 TMSB10 RPS8 RPS26 RPS3 RPL19 RPS24 GNLY RPL13 RPL7A RPL10 RPS13 RPL34 RPS28 RPL8 RPL14 ...<br><br>
+      Please identify what cell type this might be, as granular and accurate as possible.<br>
+      Keep your response concise and clear.<br>
+      At the end of your response, strictly place the final lines in this format:<br><br>
+      Cell type: X"
     </p>
   </div>
 
   <div class="section-heading">DeepSeek-R1 CoT Reasoning Output:</div>
   <div class="cot-box r1-box">
     <p><em>
-      “Okay, let's try to figure out what cell type this is. The metadata says it's from blood, COVID-19, and a 4-year-old human. The genes listed are in descending expression order.
+      “We are given metadata: Tissue is blood, Disease is COVID-19, and Development stage is 4-year-old human stage.
+      <br>
+      The list of genes is provided in descending expression order.
       <br><br>
-      First, I'll look for immune cell markers. Blood cells are typically myeloid or lymphoid. Let's check the genes. High expression of B2M and ACTB are common housekeeping genes, so not specific. Then there's TMSB4X, which is involved in actin regulation, found in various cells.
-      <br><br>
-      Looking further, RPS and RPL genes are ribosomal proteins, present in most cells, but maybe not helpful here. Then NKG7 stands out—it's associated with cytotoxic cells like NK cells and CD8+ T cells. GNLY (granulysin) and GZMB (granzyme B) are also cytotoxic markers. CCL5 is a chemokine produced by T cells and NK cells..."
+      Steps to identify the cell type:
+      <br>
+      1. Note that the tissue is blood, so we are looking for a blood cell type.
+      <br>
+      2. The disease context (COVID-19) might hint at an immune response, but we focus on the gene expression.
+      <br>
+      3. We look for marker genes that are characteristic of specific blood cell types.
+      <br>
+      Key observations from the gene list:
+      <br>
+      - High expression of ribosomal proteins (RPL* and RPS* genes) is common in many cells..."
     </em></p>
   </div>
 
   <div class="section-heading">DeepSeek-R1 Completion Output:</div>
   <div class="cot-box r1-box">
     <p><em>
-      “The cell exhibits high expression of cytotoxic markers (GNLY, GZMB, NKG7, CST7), ribosomal proteins (RPS/RPL genes), and MHC class I genes (HLA-A/B/C), alongside CD7 and CCL5. These features are characteristic of cytotoxic lymphocytes, particularly natural killer (NK) cells, which are activated during viral infections like COVID-19. The absence of T-cell receptor-associated genes (e.g., CD3) further supports an NK cell identity.
+      "Based on the metadata and gene expression profile, the cell type is identified as follows:
+      <br>- **Tissue**: Blood indicates a hematopoietic cell type.
+      <br>
+      - **Disease**: COVID-19 context suggests possible immune activation but does not override core markers.
+      <br>
+      - **Key genes**:
+      <br>
+        - **Cytotoxic markers**: High expression of *GNLY*, *GZMB*, *GZMA*, *NKG7*, and *CTSW* is characteristic of cytotoxic lymphocytes.
+      <br>
+        - **NK cell-specific signatures**: Strong presence of *NKG7*, *GNLY*, *CCL5*, *CD7*, *CLIC1*, *TAGLN2*, *SRGN*, and *CST7*, which collectively define NK cells. The absence of T-cell receptor genes (e.g., *CD3D/E/G*, *TRAC/TRBC*) rules out T cells...
       <br><br>
-      <span class="celltype-bold">Cell type: Activated natural killer (NK) cell</span>”
+        <span class="celltype-bold">Cell type: Natural Killer cell</span>”
     </em></p>
   </div>
 
   <div class="section-heading">DeepSeek-V3 Completion Output (no explicit CoT provided):</div>
   <div class="cot-box v3-box">
     <p><em>
-      "Based on the metadata and gene expression profile provided, this cell is likely a cytotoxic T cell (CD8+ T cell). Here's the reasoning:
+      "Based on the metadata and gene expression profile provided, this cell is likely a **cytotoxic T cell (CD8+ T cell)**. Here's the reasoning:
       <br><br>
-      1. **Tissue and Disease Context**: The cell is from blood and associated with COVID-19, which is consistent with an immune cell type, particularly T cells, heavily involved in antiviral responses.
+      1. **Tissue and Disease Context**: The cell is from blood and associated with COVID-19, which is consistent with an immune cell type, particularly T cells, which are heavily involved in antiviral responses.
       <br><br>
-      2. **Key Marker Genes**: NKG7, GNLY, GZMB, GZMA, CCL5, and CST7 are highly specific to cytotoxic T cells and NK cells...
+      2. **Key Marker Genes**:
+      <br>
+         - **NKG7**, **GNLY**, **GZMB**, **GZMA**, **CCL5**, and **CST7** are highly specific to cytotoxic T cells and natural killer (NK) cells...
       <br><br>
-      5. **Granularity**: The presence of cytotoxic effector molecules (e.g., GZMB, GZMA) and the absence of markers for other T cell subsets (e.g., FOXP3 for regulatory T cells or CD4 for helper T cells) further narrows this down to a cytotoxic CD8+ T cell.
-      <br><br>
-      <span class="celltype-bold">Cell type: Cytotoxic T cell (CD8+ T cell)</span>"
+        <span class="celltype-bold">Cell type: Cytotoxic T cell (CD8+ T cell)</span>”
     </em></p>
   </div>
 

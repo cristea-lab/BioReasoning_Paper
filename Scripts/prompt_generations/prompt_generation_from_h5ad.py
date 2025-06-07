@@ -2,7 +2,7 @@
 
 """
 Usage:
-  python create_prompts.py --input <input_file.h5ad> --output <output_file.ndjson>
+  python prompt_generation_from_h5ad.py --input <input_file.h5ad> --output <output_file.ndjson>
                            [--top-genes TOP_GENES] [--all-nonzero]
 
 Description:

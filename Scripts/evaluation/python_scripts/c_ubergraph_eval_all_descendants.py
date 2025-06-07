@@ -1,284 +1,178 @@
 #!/usr/bin/env python3
 """
-Example Usage:
-
-    python compare_cell_types_ndjson.py \
-        --input_ndjson my_cells_normalized.ndjson \
-        --output_csv comparison_results.csv \
-        --output_json comparison_results.json
-
-Description:
-    1) Reads an NDJSON file where each line has at least:
-         soma_joinid,
-         ground_truth_label_clean,
-         predicted_label_clean
-       (These come from the first-pass script `ols_label_normalize_ndjson.py`.)
-    2) Gathers unique ground-truth and predicted labels (the "clean" official labels).
-    3) Queries Ubergraph to find **all descendants** (multi-level) of each label via `rdfs:subClassOf+`.
-    4) For each line (cell), checks if:
-         - predicted == ground_truth            => "SAME_LABEL"
-         - predicted is any descendant of ground_truth => "PREDICTED_IS_CHILD_OF_GT"
-         - ground_truth is any descendant of predicted => "GT_IS_CHILD_OF_PREDICTED"
-         - otherwise => "NO_DIRECT_CHILD_RELATION"
-       We then decide if scTab would call it "TRUE" or "FALSE".
-    5) Outputs:
-       - CSV with row-by-row + final metrics (if --output_csv).
-       - JSON with row-by-row data + metrics (if --output_json).
-
-WARNING: Using `rdfs:subClassOf+` can return large results if a label has
-         many descendants. Performance may degrade for broad classes.
+scTab-style ontology-aware evaluation
+-------------------------------------
+* TRUE if prediction == ground truth OR prediction is any descendant.
+* For TRUE rows where prediction is a descendant, collapse the prediction
+  up to the parent label before building the confusion matrix.
+* Per-label TP/FP/FN are counted **only** for labels that appear as ground
+  truth.  Metrics reported:
+    - accuracy           (overall row correctness)
+    - macro_f1           (un-weighted mean of per-label F1)
+    - median_f1          (median of per-label F1s)
+    - weighted_f1        (support-weighted mean of per-label F1)
 """
 
-import argparse
-import json
-import csv
-from typing import List, Dict
+# ---------------------------------------------------------------------------
+import argparse, csv, json
+from typing import Dict, List
+from statistics import median
 from SPARQLWrapper import SPARQLWrapper, JSON as SPARQLJSON
+# ---------------------------------------------------------------------------
 
-###################################
-#   HELPER FUNCTIONS
-###################################
+def batched(seq, n):
+    for i in range(0, len(seq), n):
+        yield seq[i : i + n]
 
-def chunks(lst, n):
-    """Batch a list into successive n-sized chunks."""
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
+def escape_literal(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
 
-def escape_sparql_string(s: str) -> str:
-    """
-    Escape backslashes and double-quotes to keep the label valid as a SPARQL string literal.
-    """
-    s = s.replace("\\", "\\\\")
-    s = s.replace('"', '\\"')
-    return s
-
-def get_all_descendants_query(value_term: str, label_list: List[str]) -> str:
-    """
-    Build a SPARQL query that retrieves ALL descendants of each label (multi-level),
-    using rdfs:subClassOf+ ?parent.
-
-    We do string-based matching for the parent label. If we pass '?cell_type', we do:
-        VALUES ?cell_type { "rod bipolar cell" "astrocyte" ... }
-    and then match rdfs:label to that text.
-
-    For each matching parent class, we find all ?child such that:
-        ?child rdfs:subClassOf+ ?parent
-    """
-    # Use double quotes around each label, properly escaped
-    updated_list = [
-        f"\"{escape_sparql_string(label)}\""
-        for label in label_list
-    ]
-
-    # Build the query
-    query = (
-        "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>"
-        "PREFIX CL: <http://purl.obolibrary.org/obo/CL_>"
-        "PREFIX owl: <http://www.w3.org/2002/07/owl#>"
-        "SELECT * WHERE { "
-        "  ?parent rdfs:label ?cell. "
-        "  ?child rdfs:subClassOf+ ?parent. "
-        "  ?child rdfs:label ?child_label. "
-        "  ?parent rdfs:isDefinedBy <http://purl.obolibrary.org/obo/cl.owl>. "
-        "  ?child rdfs:isDefinedBy <http://purl.obolibrary.org/obo/cl.owl>. "
-        "  <http://purl.obolibrary.org/obo/cl/cl-base.owl> owl:versionIRI ?version. "
-        f"  BIND(str(?cell) AS ?cell_type) VALUES {value_term} {{ {' '.join(updated_list)} }} "
+def descendants_query(batch: List[str]) -> str:
+    values = " ".join(f"\"{escape_literal(lbl)}\"" for lbl in batch)
+    return (
+        "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
+        "PREFIX owl:  <http://www.w3.org/2002/07/owl#>\n"
+        "SELECT * WHERE {\n"
+        "  ?parent rdfs:label ?lab.\n"
+        "  BIND( str(?lab) AS ?lab_str )\n"
+        "  ?child  rdfs:subClassOf+ ?parent; rdfs:label ?child_label.\n"
+        "  ?parent rdfs:isDefinedBy <http://purl.obolibrary.org/obo/cl.owl>.\n"
+        "  ?child  rdfs:isDefinedBy <http://purl.obolibrary.org/obo/cl.owl>.\n"
+        f"  VALUES ?lab_str {{ {values} }}\n"
         "}"
     )
-    return query
 
-def retrieve_all_descendants_from_ubergraph(label_list: List[str]) -> Dict[str, List[str]]:
-    """
-    For each label in 'label_list', find *all* descendant labels (multi-level)
-    using rdfs:subClassOf+ queries.
-
-    Returns: { parent_label : [descendant_label, ...], ... }
-
-    If a label doesn't match exactly in CL, we get no descendants for that label.
-    """
-    desc_map = {}
-    if not label_list:
-        return desc_map
-
+def get_descendants(labels: List[str]) -> Dict[str, List[str]]:
+    if not labels: return {}
+    desc: Dict[str, List[str]] = {}
     sparql = SPARQLWrapper("https://ubergraph.apps.renci.org/sparql")
-    sparql.method = 'POST'
+    sparql.method = "POST"
     sparql.setReturnFormat(SPARQLJSON)
 
-    value_term = "?cell_type"
+    for batch in batched(labels, 80):
+        sparql.setQuery(descendants_query(batch))
+        try:                 res = sparql.queryAndConvert()
+        except Exception:    continue
+        for row in res["results"]["bindings"]:
+            parent = row["lab_str"]["value"]
+            child  = row["child_label"]["value"]
+            desc.setdefault(parent, []).append(child)
+    return desc
+# ---------------------------------------------------------------------------
 
-    # We'll batch the labels to avoid huge queries in one go
-    for batch in chunks(label_list, 80):
-        query = get_all_descendants_query(value_term, batch)
-        sparql.setQuery(query)
-        ret = sparql.queryAndConvert()
+def evaluate(ndjson_path: str):
+    # -------- load data ----------------------------------------------------
+    rows, gt_labels, pr_labels = [], set(), set()
+    with open(ndjson_path, encoding="utf-8") as f:
+        for ln in f:
+            if not (ln := ln.strip()): continue
+            obj = json.loads(ln)
+            gt = obj.get("ground_truth_label_clean", "").strip()
+            pr = obj.get("predicted_label_clean", "").strip()
+            rows.append({"cell": str(obj.get("soma_joinid", "")), "gt": gt, "pr": pr})
+            if gt: gt_labels.add(gt)
+            if pr: pr_labels.add(pr)
 
-        for row in ret["results"]["bindings"]:
-            parent_label = row["cell_type"]["value"]    # The matched "parent" label
-            child_label  = row["child_label"]["value"]  # A multi-level descendant
-            if parent_label not in desc_map:
-                desc_map[parent_label] = []
-            desc_map[parent_label].append(child_label)
+    # -------- ontology look-ups -------------------------------------------
+    gt_desc = get_descendants(list(gt_labels))
+    pr_desc = get_descendants(list(pr_labels))
 
-    return desc_map
-
-
-###################################
-#   MAIN EVALUATION LOGIC
-###################################
-
-def process_ndjson(input_ndjson: str):
-    """
-    Reads NDJSON lines that include:
-      soma_joinid, ground_truth_label_clean, predicted_label_clean
-
-    Gathers unique ground-truth and predicted labels -> queries Ubergraph with rdfs:subClassOf+
-    -> compares row by row.
-
-    Returns (results_list, metrics_dict).
-    """
-    row_data = []
-    gt_labels = set()
-    pr_labels = set()
-
-    # 1) Read NDJSON & gather labels
-    with open(input_ndjson, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            record = json.loads(line)
-            cell_name = record.get("soma_joinid", None)
-            # We'll cast it to string for uniformity
-            if cell_name is not None:
-                cell_name = str(cell_name)
-
-            gt_label = record.get("ground_truth_label_clean", "").strip()
-            pr_label = record.get("predicted_label_clean", "").strip()
-
-            if gt_label:
-                gt_labels.add(gt_label)
-            if pr_label:
-                pr_labels.add(pr_label)
-
-            row_data.append({
-                "cell_name": cell_name,
-                "gt_label": gt_label,
-                "pr_label": pr_label
-            })
-
-    # 2) Query *all* descendants for each label
-    gt_desc_map = retrieve_all_descendants_from_ubergraph(list(gt_labels))
-    pr_desc_map = retrieve_all_descendants_from_ubergraph(list(pr_labels))
-
-    # 3) Compare row-by-row (scTab style, but multi-level)
-    results = []
-    for row in row_data:
-        cell_name = row["cell_name"]
-        gt_label  = row["gt_label"]
-        pr_label  = row["pr_label"]
-
-        # Descendants sets
-        gt_descendants = set(gt_desc_map.get(gt_label, []))
-        pr_descendants = set(pr_desc_map.get(pr_label, []))
-
-        # scTab logic, extended for multi-level:
-        #   TRUE if same label or predicted is in gt's descendant set
-        #   FALSE if predicted is a parent of gt (i.e. gt is in predicted's descendant set)
-        #   else "NO_DIRECT_CHILD_RELATION"
-        if gt_label == pr_label and gt_label != "":
-            verdict = "SAME_LABEL"
-            match_scTab = "TRUE"
-        elif pr_label in gt_descendants:
-            # predicted is ANY-level child of ground_truth
-            verdict = "PREDICTED_IS_CHILD_OF_GT"
-            match_scTab = "TRUE"
-        elif gt_label in pr_descendants:
-            # ground_truth is ANY-level child of predicted
-            verdict = "GT_IS_CHILD_OF_PREDICTED"
-            match_scTab = "FALSE"
+    # -------- verdicts + collapse -----------------------------------------
+    eval_rows, true_rows = [], 0
+    for r in rows:
+        gt, pr = r["gt"], r["pr"]
+        ok = False
+        if gt and pr and gt == pr:
+            verdict, ok = "SAME_LABEL", True
+        elif pr and pr in gt_desc.get(gt, []):
+            verdict, ok = "PREDICTED_IS_CHILD_OF_GT", True
+        elif gt and gt in pr_desc.get(pr, []):
+            verdict, ok = "GT_IS_CHILD_OF_PREDICTED", False
         else:
             verdict = "NO_DIRECT_CHILD_RELATION"
-            match_scTab = "FALSE"
 
-        results.append({
-            "cell_name": cell_name,
-            "ground_truth_label": gt_label,
-            "predicted_label": pr_label,
-            "verdict": verdict,
-            "match_scTab": match_scTab,
-            "ground_truth_children": sorted(gt_descendants),
-            "predicted_children": sorted(pr_descendants)
-        })
+        eval_pr = gt if (ok and pr != gt) else pr
+        eval_rows.append({"cell": r["cell"], "gt": gt, "pr": pr,
+                          "eval_pr": eval_pr, "verdict": verdict,
+                          "ok": "TRUE" if ok else "FALSE"})
+        true_rows += int(ok)
 
-    # 4) Compute metrics
-    num_cells = len(results)
-    num_true = sum(1 for r in results if r["match_scTab"] == "TRUE")
-    accuracy = float(num_true) / num_cells if num_cells else 0.0
+    accuracy = true_rows / len(eval_rows) if eval_rows else 0.0
+
+    # -------- confusion matrix (GT labels only) ---------------------------
+    stats = {lbl: {"tp":0,"fp":0,"fn":0} for lbl in gt_labels}
+    for r in eval_rows:
+        gt, ev, ok = r["gt"], r["eval_pr"], (r["ok"] == "TRUE")
+        if gt in stats:
+            if ok: stats[gt]["tp"] += 1
+            else:  stats[gt]["fn"] += 1
+        if (not ok) and (ev in stats):
+            stats[ev]["fp"] += 1
+
+    # -------- per-label metrics & weighted sums ---------------------------
+    f1_vals, macro_sum, weighted_sum, total_support = [], 0.0, 0.0, 0
+    for lbl, s in stats.items():
+        tp, fp, fn = s["tp"], s["fp"], s["fn"]
+        prec = tp / (tp + fp) if tp + fp else 0.0
+        rec  = tp / (tp + fn) if tp + fn else 0.0
+        f1   = 2*prec*rec/(prec+rec) if prec+rec else 0.0
+        support = tp + fn                 # rows whose GT label = lbl
+        s.update({"precision":prec, "recall":rec, "f1":f1, "support":support})
+
+        macro_sum    += f1
+        weighted_sum += f1 * support
+        total_support+= support
+        f1_vals.append(f1)
+
+    macro_f1   = macro_sum / len(stats) if stats else 0.0
+    weighted_f1= weighted_sum / total_support if total_support else 0.0
+    median_f1  = median(f1_vals) if f1_vals else 0.0
 
     metrics = {
-        "num_cells": num_cells,
-        "num_true": num_true,
-        "accuracy": accuracy
+        "num_cells":  len(eval_rows),
+        "num_true":   true_rows,
+        "accuracy":   accuracy,
+        "macro_f1":   macro_f1,
+        "weighted_f1":weighted_f1,
+        "median_f1":  median_f1
     }
-    return results, metrics
-
+    return eval_rows, metrics
+# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="scTab-like evaluation on NDJSON, but using rdfs:subClassOf+ (multi-level) in Ubergraph."
-    )
-    parser.add_argument("--input_ndjson", required=True,
-                        help="Path to NDJSON produced by ols_label_normalize_ndjson.py.")
-    parser.add_argument("--output_csv", required=False, default=None,
-                        help="Path to a CSV summarizing row-by-row and final metrics (optional).")
-    parser.add_argument("--output_json", required=False, default=None,
-                        help="Path to a JSON with row-by-row + metrics (optional).")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description="scTab-style ontology-aware evaluation")
+    ap.add_argument("--input_ndjson", required=True)
+    ap.add_argument("--output_csv")
+    ap.add_argument("--output_json")
+    args = ap.parse_args()
 
-    # 1) Process NDJSON
-    all_rows, metrics = process_ndjson(args.input_ndjson)
+    rows, metrics = evaluate(args.input_ndjson)
 
-    # 2) If requested, output CSV
+    # -------- CSV ----------------------------------------------------------
     if args.output_csv:
-        with open(args.output_csv, "w", newline="", encoding="utf-8") as out_f:
-            writer = csv.writer(out_f)
-            writer.writerow([
-                "cell_name",
-                "ground_truth_label",
-                "predicted_label",
-                "verdict",
-                "match_scTab"
-            ])
-            for row in all_rows:
-                writer.writerow([
-                    row["cell_name"],
-                    row["ground_truth_label"],
-                    row["predicted_label"],
-                    row["verdict"],
-                    row["match_scTab"]
-                ])
-            # Final metrics
-            writer.writerow([])
-            writer.writerow(["EVALUATION_METRICS", "TOTAL_CELLS", metrics["num_cells"]])
-            writer.writerow(["EVALUATION_METRICS", "NUM_TRUE", metrics["num_true"]])
-            writer.writerow(["EVALUATION_METRICS", "ACCURACY", f"{metrics['accuracy']:.4f}"])
+        with open(args.output_csv, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["cell","ground_truth_label","predicted_label",
+                        "verdict","match_scTab"])
+            for r in rows:
+                w.writerow([r["cell"], r["gt"], r["pr"], r["verdict"], r["ok"]])
+            w.writerow([])
+            w.writerow(["EVALUATION_METRICS","TOTAL_CELLS", metrics["num_cells"]])
+            w.writerow(["EVALUATION_METRICS","NUM_TRUE",    metrics["num_true"]])
+            w.writerow(["EVALUATION_METRICS","ACCURACY",    f"{metrics['accuracy']:.4f}"])
+            w.writerow(["EVALUATION_METRICS","MACRO_F1",    f"{metrics['macro_f1']:.4f}"])
+            w.writerow(["EVALUATION_METRICS","WEIGHTED_F1", f"{metrics['weighted_f1']:.4f}"])
+            w.writerow(["EVALUATION_METRICS","MEDIAN_F1",   f"{metrics['median_f1']:.4f}"])
+        print(f"CSV written to {args.output_csv}")
 
-        print(f"CSV output saved to: {args.output_csv}")
-
-    # 3) If requested, output JSON
+    # -------- JSON ---------------------------------------------------------
     if args.output_json:
-        data_out = {
-            "evaluation_metrics": metrics,
-            "cells": all_rows
-        }
         with open(args.output_json, "w", encoding="utf-8") as jf:
-            json.dump(data_out, jf, indent=2)
-        print(f"JSON output saved to: {args.output_json}")
+            json.dump({"evaluation_metrics":metrics,"cells":rows}, jf, indent=2)
+        print(f"JSON written to {args.output_json}")
 
-    # If neither CSV nor JSON was requested, we just do the evaluation in memory
     if not args.output_csv and not args.output_json:
-        print("Evaluation done in memory (multi-level). Use --output_csv or --output_json to save results.")
-
+        print(json.dumps(metrics, indent=2))
 
 if __name__ == "__main__":
     main()

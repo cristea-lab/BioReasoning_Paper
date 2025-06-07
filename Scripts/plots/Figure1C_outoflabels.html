@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Figure 1B - Chain-of-Thought Mock</title>
+  <title>Figure 1C - Chain-of-Thought Mock</title>
   <style>
     body {
       font-family: sans-serif;
@@ -72,11 +72,17 @@
 
   <div class="section-heading">Prompt (Top Marker Genes):</div>
   <div class="prompt-box">
-    <p><strong>Instruction:</strong> “You are an expert in single-cell biology.\n\nBelow is metadata for one cell, followed by a list of its genes in descending expression.\n\nTissue: islet of Langerhans\nDisease: normal\nDevelopment stage: 5-year-old human stage\n”</p>
-    <p class="gene-list">
-      Genes: PRSS1 CPA1 CPB1 PNLIP GP2 CELA3A REG1A CTRC AMY2A REG1B CTRB2 CPA2 CELA3B CELA2A CLPS CTRB1 PLA2G1B SYCN PRSS3 CELA2B SPINK1 CTRL PNLIPRP1 EEF1A1 P4HB KLK1 AMY2B RPL3 MT1G HSPA5 MT2A MALAT1 SERPINA3 KRT8 PDIA2 REG3G KRT18 H3-3B ACTG1... 
+    <p><strong>Instruction:</strong> “You are an expert in single-cell biology.
       <br><br>
-      Here is a list of all possible cell types you must choose from:\nB cell\nBergmann glial cell\nCD14-low, CD16-positive monocyte\nCD14-positive monocyte\nCD14-positive, CD16-negative classical monocyte\nCD14-positive, CD16-positive monocyte\nCD16-negative, CD56-bright natural killer cell, human\nCD16-positive, CD56-dim natural killer cell, human\nCD1c-positive myeloid dendritic cell\nCD4-positive helper T cell\nCD4-positive, alpha-beta T cell\...
+      Below is metadata for one cell, followed by a list of its genes in descending expression.
+      <br><br>
+      Tissue: pancreas
+      <br>Disease: normal
+      <br>Development stage: 59-year-old human stage”</p>
+    <p class="gene-list">
+      "Genes: REG1A REG3A REG1B SPINK1 MALAT1 CTRB2 SERPINA3 PNLIP PRSS1 CPB1 DUOX2 PLA2G1B EEF1A1 FTH1 B2M CD24 CPA1 RPL41 PNLIPRP2 CELA3A CTRB1 GNAS RPS12 SPINT2 RPS6 RPS20 ALB RPL14 RPL15 PTMA RPL13 RPL5 ITM2B ACTG1 RPL13AP20 CPA2 RPS23 RPL13A GCG ALDOB GATM RPS27 RPL10A RPL10... 
+      <br><br>
+      Here is a list of all possible cell types you must choose from:\nB cell\nBergmann glial cell\nCD14-low, CD16-positive monocyte\nCD14-positive monocyte\nCD14-positive, CD16-negative classical monocyte\nCD14-positive, CD16-positive monocyte\nCD16-negative, CD56-bright natural killer cell, human\nCD16-positive, CD56-dim natural killer cell, human\nCD1c-positive myeloid dendritic cell\nCD4-positive helper T cell\nCD4-positive, alpha-beta T cell\nCD4-positive, alpha-beta cytotoxic T cell\nCD4-positive, alpha-beta memory T cell\nCD8-alpha-alpha-positive, alpha-beta intraepithelial T cell\nCD8-positive, alpha-beta T cell\nCD8-positive, alpha-beta cytotoxic T cell\nCD8-positive...
       <br><br>
       Please identify what cell type this might be.
       <br>
@@ -86,24 +92,29 @@
       <br>
       At the end, use this format:
       <br><br>
-      Cell type: X
+      Cell type: X"
     </p>
   </div>
 
   <div class="section-heading">DeepSeek-R1 CoT Reasoning Output:</div>
   <div class="cot-box r1-box">
     <p><em>
-      "Okay, let's see. The metadata says the tissue is the islet of Langerhans, which I know is in the pancreas. The disease is normal, so it's a healthy cell. The development stage is a 5-year-old human, so not embryonic. Now looking at the genes listed.
-      <br><br>
-      The top genes are PRSS1, CPA1, CPB1, PNLIP, GP2, CELA3A, REG1A, CTRC, AMY2A, etc. These genes are mostly associated with digestive enzymes. PRSS1 is trypsinogen, which is a pancreatic enzyme. CPA1 and CPB1 are carboxypeptidases, also pancreatic enzymes. PNLIP is pancreatic lipase. AMY2A is amylase. These are all enzymes secreted by the pancreas, specifically the acinar cells, which produce digestive enzymes. 
-      <br><br>
-      REG1A and REG1B are regenerating islet-derived proteins, which I think are involved in regeneration but might be expressed in certain pancreatic cells. However, the islet of Langerhans contains endocrine cells like beta cells (insulin), alpha cells (glucagon), etc. But the genes here are more exocrine, related to digestive enzymes, which are produced by acinar cells. But wait, the tissue is listed as islet, which is endocrine. That's confusing. Maybe there's a mix-up? Or maybe the cell type is a ductal cell or something else in the pancreas?
-      <br><br>
-      Wait, looking again. The islet is endocrine, but maybe this cell is from a pancreatic sample that includes both endocrine and exocrine cells. Because acinar cells are part of the exocrine pancreas. However, the metadata says \"tissue: islet of Langerhans\", which should be endocrine. But the genes are exocrine. Hmm. Maybe there's contamination or misannotation?..."
-      <br><br>
-      (Reasoning continues...)
-      <br><br>
-      <span style='color:red;'>"The genes are acinar, but the options don't have it. The answer should be \"pancreatic acinar cell\", but it's not there. Therefore, I'll state that the cell type is pancreatic acinar cell, but since it's not in the list, there's no correct answer. However, the user requires a choice. But perhaps the user made a mistake, and the correct answer is \"acinar cell\", which is not listed. Given the lack of options, I'll have to go with that, but the user's list doesn't include it. Alternatively, maybe the answer is \"enterocyte\" with a note. But that's not correct. I'm sorry, but I can't find a matching cell type in the provided list. However, based on the genes, it's a pancreatic acinar cell."
+      "Alright, I need to figure out what cell type this is based on the given metadata and gene expression data. Let's start by breaking down the information provided.
+      
+      First, the metadata says the tissue is pancreas, the disease state is normal, and the development stage is a 59-year-old human. So, we're dealing with a healthy adult pancreas cell. That gives me a starting point because pancreas cells can include various types like acinar, ductal, endocrine, etc.
+      
+      Now, looking at the list of genes in descending order of expression. The top genes are REG1A, REG3A, REG1B, SPINK1, MALAT1, CTRB2, SERPINA3, PNLIP, PRSS1, CPB1, and so on. I recognize several of these genes as being associated with specific pancreatic functions...
+      <span style='color:red;'>
+        <br><br>
+        These are housekeeping genes and are highly expressed in most cell types, so they don't help much in cell type identification. However, the specific digestive enzyme genes are key.
+
+        Looking back at the list of possible cell types, \"acinar cell\" isn't listed explicitly. But \"pancreatic acinar cell\" is an option. Wait, let me check the list again. The options include \"pancreatic acinar cell\"? Actually, looking at the list provided, I see \"paneth cell\" which is an intestinal cell, not pancreatic. But the metadata says the tissue is pancreas, so Paneth cells are in the intestine, not pancreas. That rules out Paneth cells.
+
+        Other options include endocrine cells like alpha, beta, delta, etc., but their markers aren't dominant here. The gene list doesn't show high expression of INS, GCG, SST, or PPY in the top positions. Instead, the top genes are exocrine enzymes.
+
+        Also, there are immune cells listed, but the pancreas tissue from a normal individual wouldn't typically have immune cells as the primary cell type. Plus, immune markers like CD3, CD19, CD14, etc., aren't prominent in the gene list. For example, CD24 is present but not high up, and it's also expressed in other cell types.
+
+        Given all this, the most likely cell type is the pancreatic acinar cell. It fits the tissue context, and the gene expression profile is dominated by digestive enzymes and acinar-specific genes like REG1A, REG1B, REG3A, SPINK1, PNLIP, PRSS1, CPB1, CTRB2, and others."
       </span>
     </em></p>
   </div>
@@ -111,15 +122,19 @@
   <div class="section-heading">DeepSeek-R1 Completion Output:</div>
   <div class="cot-box r1-box">
     <p><em>
-      "The genes expressed (e.g., PRSS1, CPA1, PNLIP, AMY2A) are hallmark markers of pancreatic **acinar cells**, which produce digestive enzymes. However, the metadata specifies the tissue as the islet of Langerhans (endocrine pancreas), creating a discrepancy. Acinar cells belong to the exocrine pancreas, not the islet. None of the provided cell types explicitly match pancreatic acinar or exocrine cells. Given the gene profile and absence of endocrine markers (e.g., insulin, glucagon), the most plausible explanation is a misannotation in the metadata, with the cell originating from the exocrine pancreas."
+      "Based on the metadata and gene expression profile, this cell is identified as a **pancreatic acinar cell**. Key evidence includes:
       <br><br>
-      <span class="celltype-bold">Cell type: (Not listed; likely pancreatic acinar cell)</span>”
+      1.  **Tissue Context:** The cell originates from a normal human pancreas, which consists primarily of exocrine acinar cells (enzyme production), ductal cells, and endocrine islet cells.
+      <br><br>
+      2.  **Dominant Gene Signature:** The top expressed genes are highly specific to pancreatic acinar cell function:\n    *   **Digestive Enzymes:** `PNLIP` (pancreatic lipase), `PRSS1` (trypsinogen), `CPB1` (carboxypeptidase B1), `CTRB2`/`CTRB1` (chymotrypsinogen B), `CELA3A`/`CELA2A` (chymotrypsin-like elastases), `CPA1`/`CPA2` (carboxypeptidase A1/A2), `PLA2G1B` (phospholipase A2), `AMY2A` (amylase)...
+      <br><br>
+      <span class="celltype-bold">Cell type: pancreatic acinar cell"</span>
     </em></p>
   </div>
 
   <div class="section-heading">Ground Truth Cell Type:</div>
   <div class="label-box">
-    <p><strong>Ground Truth:</strong> <em>acinar cell (not part of the given list of cell types)</em></p>
+    <p><strong>Ground Truth:</strong> <em>pancreatic acinar cell (not part of the given list of cell types)</em></p>
   </div>
 </div>
 

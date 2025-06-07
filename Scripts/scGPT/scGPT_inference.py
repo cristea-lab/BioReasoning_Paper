@@ -4,7 +4,7 @@ It filters genes based on a vocabulary, selects the top 3000 highly variable gen
 and saves the results along with the true cell types in an NDJSON file.
 
 Usage:
-    python script.py --input_h5ad path/to/input.h5ad --output_ndjson path/to/output.ndjson
+    python scGPT_inference.py --input_h5ad path/to/input.h5ad --output_ndjson path/to/output.ndjson
 
 Requirements:
     - The input H5AD file must have 'obs.cell_type' and 'var.feature_name'.

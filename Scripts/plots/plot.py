@@ -1,14 +1,11 @@
-'''
-Functions for making bar and heat plots in the Deepseek R1 projects
-'''
+# v3 compared to v2: processing input error bars for each bar
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
-import pandas as pd
 import math
-import os
-import seaborn as sns
+import os # Added for save_path directory creation
+NA = np.nan # short for na values when plotting error bars in MetricPlotter
 
 class MetricPlotter:
     """
@@ -27,6 +24,12 @@ class MetricPlotter:
         percentage (bool): If True, scale y-axis and annotations by 100.
         y_lim_lower (float, optional): Fixed lower y-axis limit (in display scale). Defaults to None (dynamic).
         y_lim_upper (float, optional): Fixed upper y-axis limit (in display scale). Defaults to None (dynamic).
+        x_label_fontsize (int): Font size for the x-axis label.
+        y_label_fontsize (int): Font size for the y-axis label.
+        x_tick_fontsize (int): Font size for the x-axis tick labels.
+        y_tick_fontsize (int): Font size for the y-axis tick labels.
+        title_fontsize (int): Font size for the plot title.
+        legend_fontsize (int): Font size for the legend.
     """
     def __init__(self,
                  figure_height=6,
@@ -38,7 +41,14 @@ class MetricPlotter:
                  width_scale_factor=1.2,
                  percentage=True,
                  y_lim_lower=None,
-                 y_lim_upper=None):
+                 y_lim_upper=None,
+                 # New font size parameters
+                 x_label_fontsize=12,
+                 y_label_fontsize=12,
+                 x_tick_fontsize=10,
+                 y_tick_fontsize=10,
+                 title_fontsize=14,
+                 legend_fontsize=10): # Added legend_fontsize
         self.figure_height = figure_height
         self.bar_width = bar_width
         self.group_gap = group_gap
@@ -49,14 +59,56 @@ class MetricPlotter:
         self.percentage = percentage
         self.y_lim_lower = y_lim_lower
         self.y_lim_upper = y_lim_upper
+        self.x_axis_padding = 0.0 # change the bars position (for the first bar)
+
+        # Store font size attributes
+        self.bar_fontsize = 9
+        self.x_label_fontsize = x_label_fontsize
+        self.y_label_fontsize = y_label_fontsize
+        self.x_tick_fontsize = x_tick_fontsize
+        self.y_tick_fontsize = y_tick_fontsize
+        self.title_fontsize = title_fontsize
+        self.legend_fontsize = legend_fontsize # Store legend_fontsize
 
         self.colors = ['#D4AFB9', '#A9B2C3', '#C3CBD5', '#EAE7DC', '#B8B8D1', '#A7C7E7', '#B5EAD7', '#FFDAC1', '#FF9AA2', '#C7CEEA','#71C9CE', '#A6E3E9', '#CBF1F5', '#FFE6E6', '#FFB6B9']
         self.rotation = 0 # rotation degree for x_label
         self.display_axes_borders = "all"  # "all", "xy" or "none", controls borders of the plot
         self.ncol_legend = 3
 
+    def _build_yerr(self, err_low, err_high, shape):
+        """
+        Assemble a matplotlib-compatible yerr array (shape: 2 × …) or None.
+
+        Parameters
+        ----------
+        err_low, err_high : array-like or None
+            Lower / upper absolute errors, no conversion for percentage format
+            允许 np.nan: ignore bars without error bar values
+        shape : tuple
+            Should match metrics's shape; for check
+        """
+        if err_low is None and err_high is None:
+            return None, None                # when no value provided for a bar, it's processed with no error bars
+
+        # if only one side's error bar is given, the other is defualt 0
+        low = np.zeros(shape, dtype=float) if err_low is None else np.asarray(err_low, dtype=float)
+        high = np.zeros(shape, dtype=float) if err_high is None else np.asarray(err_high, dtype=float)
+
+        if low.shape != shape or high.shape != shape:
+            raise ValueError("Error-bar arrays must match `metrics` shape.")
+
+        # None would be transformed to np.nan
+        low = np.where(np.equal(low, None), NA, low)
+        high = np.where(np.equal(high, None), NA, high)                    
+
+        # matplotlib bar()
+        yerr = np.vstack([low, high])
+
+        return yerr, high                    # return the upper part for annotation
+
+
     def _calculate_ci_half_width(self, n, metric_val):
-        # (Implementation remains the same)
+        # calculate half width of CI based on Bernoulli distribution, not called in this study
         if not (0 <= metric_val <= 1): return 0.0
         if not isinstance(n, (int, float, np.integer, np.floating)) or n <= 0 or (isinstance(n, float) and not n.is_integer()): return 0.0
         n_int = int(n)
@@ -69,37 +121,50 @@ class MetricPlotter:
         return z * standard_error
 
     def _setup_figure_axes(self, n_elements, element_width, gap):
-        # (Implementation remains the same)
-        center_spacing = max(1.0, element_width + gap)
-        total_x_span = center_spacing * (n_elements - 1) + element_width if n_elements > 1 else element_width
+        # 
+        center_spacing = element_width + gap
+        if center_spacing <= 0 and n_elements > 1:
+            pass
+        if n_elements > 1:
+            total_x_span = center_spacing * (n_elements - 1) + element_width
+        else:
+            total_x_span = element_width
+        total_x_span = max(total_x_span, element_width, self.bar_width)
         dynamic_figure_width = max(self.min_figure_width, total_x_span * self.width_scale_factor + 2)
         fig, ax = plt.subplots(figsize=(dynamic_figure_width, self.figure_height))
         return fig, ax, center_spacing
 
     def _finalize_plot(self, fig, ax, title, x_label, y_label, x_ticks, x_tick_labels, y_lim_01, has_legend, save_path):
-        # (Implementation remains the same)
-        ax.set_xlabel(x_label)
+        ax.set_xlabel(x_label, fontsize=self.x_label_fontsize) # Use attribute
         effective_y_label = y_label + " (%)" if self.percentage else y_label
-        ax.set_ylabel(effective_y_label)
-        ax.set_title(title)
+        ax.set_ylabel(effective_y_label, fontsize=self.y_label_fontsize) # Use attribute
+        ax.set_title(title, fontsize=self.title_fontsize) # Use attribute
+
         ax.set_xticks(x_ticks)
         if self.rotation:
-            ax.set_xticklabels(x_tick_labels, rotation=self.rotation, ha="right")
-        else: ax.set_xticklabels(x_tick_labels)
+            ax.set_xticklabels(x_tick_labels, rotation=self.rotation, ha="right", fontsize=self.x_tick_fontsize) # Use attribute
+        else:
+            ax.set_xticklabels(x_tick_labels, fontsize=self.x_tick_fontsize) # Use attribute
+
+        ax.tick_params(axis='y', labelsize=self.y_tick_fontsize) # Use attribute for y-tick labels
+
         ax.set_ylim(y_lim_01[0], y_lim_01[1])
         if self.percentage:
             scaled_upper_lim = y_lim_01[1] * 100
             tick_precision = 0 if scaled_upper_lim > 10 else 1
             formatter = mtick.FuncFormatter(lambda y, _: f'{y * 100:.{tick_precision}f}')
             ax.yaxis.set_major_formatter(formatter)
-        if has_legend:
-            ax.legend(bbox_to_anchor=(0.5, 1.05),  # 将图例放在轴的上方中央
-              loc='lower center',         # 将图例的下边缘中心与 bbox_to_anchor 对齐
-              borderaxespad=0.,
-              ncol=self.ncol_legend)
-            # ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left', borderaxespad=0.)
+            # Apply y_tick_fontsize again after formatter, just in case formatter resets it (unlikely but good practice)
+            ax.tick_params(axis='y', labelsize=self.y_tick_fontsize)
 
-        # axes border display
+
+        if has_legend:
+            ax.legend(bbox_to_anchor=(0.5, 1.05),
+                      loc='lower center',
+                      borderaxespad=0.,
+                      ncol=self.ncol_legend,
+                      fontsize=self.legend_fontsize) # Use attribute
+
         if self.display_axes_borders not in ['all', "xy", 'none']:
             print('display_axes_borders has to be one of all, xy or none')
         if self.display_axes_borders == 'xy':
@@ -111,134 +176,158 @@ class MetricPlotter:
             ax.spines['bottom'].set_visible(False)
             ax.spines['left'].set_visible(False)
 
-
         try:
             right_margin = 0.85 if has_legend else 0.95
             fig.tight_layout(rect=[0.03, 0.03, right_margin, 0.95])
         except ValueError:
              print("Warning: tight_layout failed.")
              plt.subplots_adjust(left=0.1, right=0.8 if has_legend else 0.9, bottom=0.1, top=0.9)
-        # Defer saving and showing to main plot methods
+
 
     def _annotate_bars_above(self, ax, bars, metric_values_01, errors_01=None):
-        # (Implementation remains the same)
+        # 
         scale_factor = 100.0 if self.percentage else 1.0
-        errors_01 = errors_01 if errors_01 is not None else np.zeros_like(metric_values_01)
+        if errors_01 is not None and not isinstance(errors_01, np.ndarray):
+            errors_01 = np.array(errors_01, dtype=float)
+        if errors_01 is None or errors_01.size != len(metric_values_01):
+            errors_01 = np.zeros_like(metric_values_01, dtype=float)
+
         for i, bar in enumerate(bars):
             height_01 = metric_values_01[i]
-            error_01 = errors_01[i]
+            error_01 = errors_01[i] if errors_01 is not None and i < len(errors_01) else 0
             annotation_y_pos_01 = height_01 + error_01 + self.text_margin
             display_value = height_01 * scale_factor
             annotation_text = f"{display_value:.{self.annotation_digits}f}"
             ax.text(bar.get_x() + bar.get_width() / 2.0, annotation_y_pos_01,
-                    annotation_text, ha='center', va='bottom', fontsize=9)
-            
+                    annotation_text, ha='center', va='bottom', fontsize=self.bar_fontsize) # Annotation font size is still 9
+
     def _calculate_dynamic_y_limits(self, data_np, ci_half_np):
-        """
-        Calculates dynamic y-axis limits based on data and confidence intervals.
-
-        Args:
-            data_np (np.ndarray): Array of metric/value data (0-1 scale).
-            ci_half_np (np.ndarray or None): Array of CI half-widths (0-1 scale), or None.
-
-        Returns:
-            tuple: (dynamic_lower_lim_01, dynamic_upper_lim_01) in 0-1 scale.
-        """
+        # 
         if data_np.size == 0:
-            return (0.0, 1.0) # Default for empty data
-
-        # Calculate min/max based on data and potential CIs
+            return (0.0, 1.0)
         min_val_01 = np.min(data_np)
         max_val_01 = np.max(data_np)
-        max_err_01 = 0.0 # Max error needed for upper limit buffer
-
+        max_err_01 = 0.0
         if ci_half_np is not None and ci_half_np.size > 0:
             valid_ci = ~np.isnan(ci_half_np)
             if np.any(valid_ci):
-                # Check min value including negative CI boundary
                 min_val_with_ci_01 = np.min(data_np[valid_ci] - ci_half_np[valid_ci])
                 min_val_01 = min(min_val_01, min_val_with_ci_01)
-
-                # Check max value including positive CI boundary
                 max_val_with_ci_01 = np.max(data_np[valid_ci] + ci_half_np[valid_ci])
                 max_val_01 = max(max_val_01, max_val_with_ci_01)
-                # Find max error relevant for annotation spacing
                 max_err_01 = np.max(ci_half_np[valid_ci])
-
-        # Calculate buffer based on the actual data range
         y_range_01 = max_val_01 - min_val_01
-        # Ensure buffer is at least enough for text margin considerations
         y_buffer_01 = max(y_range_01 * 0.05, self.text_margin * 3)
-
-        # Calculate dynamic limits including buffer
         dynamic_lower_lim_01 = min_val_01 - y_buffer_01
-        # Prevent lower limit from going above 0 unless data warrants it
         if min_val_01 >= 0:
              dynamic_lower_lim_01 = max(0, dynamic_lower_lim_01)
-
-        # Dynamic upper limit needs to accommodate highest annotation
         dynamic_upper_lim_01 = max_val_01 + max_err_01 + self.text_margin + y_buffer_01 * 0.5
-        # Apply capping relative to 1.0
         dynamic_upper_lim_01 = min(dynamic_upper_lim_01, 1.0 + y_buffer_01)
-
         return (dynamic_lower_lim_01, dynamic_upper_lim_01)
 
-    def group_barplot(self, group_names, item_names, metrics, n_samples=None, x_label='Group', y_label='Metric', title="", save_path=None):
-        """
-        Plots a grouped bar chart. Uses fixed y-limits if provided, else dynamic.
-        """
-        # --- Input Handling & Validation --- 
+    def group_barplot(self, group_names, item_names, metrics, n_samples=None,err_low=None, err_high=None, x_label='Group', y_label='Metric', title="", save_path=None):
+        # ---------- input conversion ----------
         try:
             metrics_np = np.array(metrics, dtype=float)
             n_samples_np = np.array(n_samples, dtype=float) if n_samples is not None else None
             group_names, item_names = list(group_names), list(item_names)
         except Exception as e: raise TypeError(f"Input conversion failed: {e}")
+
+        # ---------- original sanity checks ----------
+        if metrics_np.ndim != 2: raise ValueError("metrics must be a 2D array-like.")
         n_items, n_groups = metrics_np.shape
         if n_items == 0 or n_groups == 0: raise ValueError("Inputs cannot be empty.")
+        if len(item_names) != n_items: raise ValueError("Length of item_names must match number of rows in metrics.")
+        if len(group_names) != n_groups: raise ValueError("Length of group_names must match number of columns in metrics.")
+        if n_samples_np is not None and n_samples_np.shape != metrics_np.shape:
+            raise ValueError("Shape of n_samples must match shape of metrics.")
+
+        # ---------- OPTIONAL asymmetric-error arrays ----------
+        err_low_np  = (np.array(err_low,  dtype=float)
+                       if err_low  is not None else None)
+        err_high_np = (np.array(err_high, dtype=float)
+                       if err_high is not None else None)
+        if err_low_np  is not None and err_low_np.shape  != metrics_np.shape:
+            raise ValueError("err_low must have same shape as metrics.")
+        if err_high_np is not None and err_high_np.shape != metrics_np.shape:
+            raise ValueError("err_high must have same shape as metrics.")
         
         scale_factor = 100.0 if self.percentage else 1.0
-
-        # --- Setup Figure & Axes --- 
+        # ---------- figure & axes ----------
         total_item_width = n_items * self.bar_width
         fig, ax, group_center_spacing = self._setup_figure_axes(n_groups, total_item_width, self.group_gap)
         group_centers = np.arange(n_groups) * group_center_spacing
+        # ---------- containers for unified annotation ----------
+        all_bars_flat     = []
+        all_metrics_flat  = []
+        all_errors_flat   = []     # store *upper* errors only
 
-        # --- Calculate CI --- 
-        ci_half_np = None
-        if n_samples_np is not None:
-            ci_half_np = np.zeros_like(metrics_np)
-            for i in range(n_items):
-                for j in range(n_groups):
-                    ci_half_np[i, j] = self._calculate_ci_half_width(n_samples_np[i, j], metrics_np[i, j])
-
-        # --- Plotting --- 
-        all_bars_flat, all_metrics_flat, all_errors_flat = [], [], []
+        # ---------- main drawing loop ----------
         for i in range(n_items):
             offset = (i - (n_items - 1) / 2.0) * self.bar_width
-            bar_positions = group_centers + offset
-            yerr_values = ci_half_np[i, :] if ci_half_np is not None else None
-            bars = ax.bar(bar_positions, metrics_np[i, :], width=self.bar_width, yerr=yerr_values,
-                          capsize=5 if yerr_values is not None else 0, label=item_names[i],
-                          error_kw={'elinewidth':1, 'capthick':1}, color = self.colors[i])
-            all_bars_flat.extend(bars)
-            all_metrics_flat.extend(metrics_np[i, :])
-            all_errors_flat.extend(yerr_values if yerr_values is not None else [0] * n_groups)
 
-        # --- Annotations --- 
-        self._annotate_bars_above(ax, all_bars_flat, all_metrics_flat, all_errors_flat)
+            for j in range(n_groups):                           # loop for each bar in an item
+                x_pos = group_centers[j] + offset
+                bar_val = metrics_np[i, j]
 
-        # --- Calculate Dynamic Y-Limits using Helper --- <<< MODIFIED
-        dynamic_lower_lim_01, dynamic_upper_lim_01 = self._calculate_dynamic_y_limits(metrics_np, ci_half_np)
+                # get upper/lower for a single bar
+                low_err_val  = None if err_low_np  is None else err_low_np[i, j]   
+                high_err_val = None if err_high_np is None else err_high_np[i, j]  
 
-        # --- Determine Final Y-Limits using user settings or dynamic values --- 
-        final_lower_lim_01 = self.y_lim_lower / scale_factor if self.y_lim_lower is not None else dynamic_lower_lim_01
-        final_upper_lim_01 = self.y_lim_upper / scale_factor if self.y_lim_upper is not None else dynamic_upper_lim_01
-        final_y_lim_01 = (final_lower_lim_01, final_upper_lim_01)
+                # --------- decide if a bar has error bars ----------
+                if ((low_err_val  is None or np.isnan(low_err_val)) and
+                    (high_err_val is None or np.isnan(high_err_val))):
+                    yerr_single = None
+                    capsize_val = 0
+                    upper_for_text = 0.0
+                else:
+                    low_err_val  = 0.0 if low_err_val  is None or np.isnan(low_err_val)  else float(low_err_val)
+                    high_err_val = 0.0 if high_err_val is None or np.isnan(high_err_val) else float(high_err_val)
+                    yerr_single = [[low_err_val], [high_err_val]]                      
+                    capsize_val = 5
+                    upper_for_text = high_err_val
 
-        # --- Finalize --- (Same as before, but handle save/show here)
-        self._finalize_plot(fig, ax, title, x_label, y_label, group_centers, group_names, final_y_lim_01, n_items > 1, None) # Pass None for save_path
+                # --------- draw a single bar ----------
+                bar_cont = ax.bar(x_pos, bar_val,
+                                  width=self.bar_width,
+                                  yerr=yerr_single,
+                                  capsize=capsize_val,
+                                  error_kw={'elinewidth': 1, 'capthick': 1},
+                                  color=self.colors[i % len(self.colors)],
+                                  label=item_names[i] if j == 0 else None)  
 
-        # --- Save / Show ---
+                all_bars_flat.extend(bar_cont)            
+                all_metrics_flat.append(bar_val)
+                all_errors_flat.append(upper_for_text)
+
+        # ---------- annotate all bars ----------
+        self._annotate_bars_above(
+            ax,
+            all_bars_flat,
+            np.asarray(all_metrics_flat, dtype=float),
+            np.asarray(all_errors_flat, dtype=float))
+        
+        # determine edge before/after the first/last bars
+        first_group_left_edge = group_centers[0] - total_item_width / 2
+        last_group_right_edge = group_centers[-1] + total_item_width / 2
+        ax.set_xlim(
+            first_group_left_edge - self.x_axis_padding,
+            last_group_right_edge + self.x_axis_padding
+        )
+
+        # ---------- dynamic y-limits ----------
+        err_upper_mat = np.array(all_errors_flat, dtype=float).reshape(metrics_np.shape)
+        dyn_low_01, dyn_up_01 = self._calculate_dynamic_y_limits(
+            metrics_np.flatten(), err_upper_mat.flatten())     
+        final_low_01 = (self.y_lim_lower / scale_factor
+                        if self.y_lim_lower is not None else dyn_low_01)
+        final_up_01  = (self.y_lim_upper / scale_factor
+                        if self.y_lim_upper  is not None else dyn_up_01)
+        self._finalize_plot(fig, ax, title, x_label, y_label,
+                            group_centers, group_names,
+                            (final_low_01, final_up_01),
+                            has_legend=(n_items > 1), save_path=None)
+        
         if save_path:
             if isinstance(save_path, str):
                 try:
@@ -248,65 +337,166 @@ class MetricPlotter:
                     print(f"Plot saved to: {save_path}")
                 except Exception as e: print(f"Error saving plot: {e}")
             else: print(f"Warning: 'save_path' not a string.")
-
         plt.show()
 
 
-    def barplot(self, bar_names, values, n_samples=None, bottom_annotations=None, x_label='Category', y_label='Value', title="", save_path=None):
+    def barplot(
+        self,
+        bar_names,
+        values,
+        n_samples=None,
+        err_low=None,
+        err_high=None,
+        bottom_annotations=None,
+        x_label='Category',
+        y_label='Value',
+        title="",
+        save_path=None
+    ):
         """
-        Plots a simple bar chart. Uses fixed y-limits if provided, else dynamic.
-        """
-        # --- Input Handling & Validation --- 
-        try:
-            values_np = np.array(values, dtype=float)
-            n_samples_np = np.array(n_samples, dtype=float) if n_samples is not None else None
-            bottom_annotations = list(bottom_annotations) if bottom_annotations is not None else None
-            bar_names = list(bar_names)
-        except Exception as e: raise TypeError(f"Input conversion failed: {e}")
-        n_bars = len(values_np)
-        if n_bars == 0: raise ValueError("Inputs cannot be empty.")
-        # ... (other validation checks omitted for brevity) ...
-        scale_factor = 100.0 if self.percentage else 1.0
+        Draw a simple bar-plot with optional asymmetric error bars.
 
-        # --- Setup Figure & Axes --- 
-        fig, ax, bar_center_spacing = self._setup_figure_axes(n_bars, self.bar_width, self.group_gap)
+        Key improvement
+        ---------------
+        The y–position of the value annotation is now computed so that it
+        always clears the highest point of the error bar *and* its cap.  
+        This avoids the annotation text overlapping the error bar even when
+        the error bar is very short.
+        """
+        # ------------------------------------------------------------------
+        # 0) --- Input coercion / validation --------------------------------
+        # ------------------------------------------------------------------
+        try:
+            values_np         = np.asarray(values,       dtype=float)
+            n_samples_np      = None if n_samples is None else np.asarray(n_samples, dtype=float)
+            bottom_annotations = None if bottom_annotations is None else list(bottom_annotations)
+            bar_names          = list(bar_names)
+        except Exception as e:
+            raise TypeError(f"Input conversion failed: {e}")
+
+        n_bars = len(values_np)
+        if n_bars == 0:
+            raise ValueError("Inputs cannot be empty.")
+        if len(bar_names) != n_bars:
+            raise ValueError("Length of bar_names must match length of values.")
+        if n_samples_np is not None and len(n_samples_np) != n_bars:
+            raise ValueError("Length of n_samples must match length of values.")
+        if bottom_annotations is not None and len(bottom_annotations) != n_bars:
+            raise ValueError("Length of bottom_annotations must match length of values.")
+
+        scale_factor = 100.0 if self.percentage else 1.0  # 0-1 to percentage if requested
+
+        # ------------------------------------------------------------------
+        # 1) --- Figure / axis bootstrap ------------------------------------
+        # ------------------------------------------------------------------
+        fig, ax, bar_center_spacing = self._setup_figure_axes(
+            n_bars, self.bar_width, self.group_gap
+        )
         bar_centers = np.arange(n_bars) * bar_center_spacing
 
-        # --- Calculate CI --- 
-        ci_half_np = None
-        if n_samples_np is not None:
-            ci_half_np = np.zeros_like(values_np)
-            for i in range(n_bars):
-                ci_half_np[i] = self._calculate_ci_half_width(n_samples_np[i], values_np[i])
+        # ------------------------------------------------------------------
+        # 2) --- Assemble asymmetric y-error matrix -------------------------
+        # ------------------------------------------------------------------
+        yerr_mat, err_upper = self._build_yerr(err_low, err_high, values_np.shape)
 
-        # --- Plotting ---
-        bars = ax.bar(bar_centers, values_np, width=self.bar_width, color=self.colors[:n_bars],
-                      yerr=ci_half_np, capsize=5 if ci_half_np is not None else 0,
-                      error_kw={'elinewidth':1, 'capthick':1})
+        if yerr_mat is None:      # fall back to symmetric (binomial) CI if no manual error bars
+            if n_samples_np is not None:
+                ci_half_np = np.fromiter(
+                    (self._calculate_ci_half_width(int(n), v) for n, v in zip(n_samples_np, values_np)),
+                    dtype=float,
+                    count=n_bars,
+                )
+                yerr_mat  = np.vstack([ci_half_np, ci_half_np])
+                err_upper = ci_half_np
+            else:
+                err_upper = np.zeros_like(values_np)
 
-        # --- Annotations Above Bars --- 
-        self._annotate_bars_above(ax, bars, values_np, ci_half_np)
+        # ------------------------------------------------------------------
+        # 3) --- Draw bars + error bars ------------------------------------
+        # ------------------------------------------------------------------
+        bars = ax.bar(
+            bar_centers,
+            values_np,
+            width=self.bar_width,
+            yerr=yerr_mat,
+            capsize=5 if yerr_mat is not None else 0,
+            error_kw={'elinewidth': 1, 'capthick': 1},
+            color=[self.colors[i % len(self.colors)] for i in range(n_bars)],
+        )
 
-        # --- Calculate Dynamic Y-Limits using Helper --- 
-        dynamic_lower_lim_01, dynamic_upper_lim_01 = self._calculate_dynamic_y_limits(values_np, ci_half_np)
+        # ------------------------------------------------------------------
+        # 4) --- Y-limit calculation (needs to include annotation padding) --
+        # ------------------------------------------------------------------
+        # Dynamic limits based on data
+        dyn_low, dyn_up = self._calculate_dynamic_y_limits(values_np, err_upper)
 
-        # --- Determine Final Y-Limits using user settings or dynamic values --- 
-        final_lower_lim_01 = self.y_lim_lower / scale_factor if self.y_lim_lower is not None else dynamic_lower_lim_01
-        final_upper_lim_01 = self.y_lim_upper / scale_factor if self.y_lim_upper is not None else dynamic_upper_lim_01
-        final_y_lim_01 = (final_lower_lim_01, final_upper_lim_01)
+        # Extra head-room so the annotation text never touches the error-bar cap
+        # We allocate 1.5 % of the axis span (in data units) OR 3 × text_margin,
+        # whichever is larger, as an additional vertical buffer.
+        extra_headroom = max((dyn_up - dyn_low) * 0.015, self.text_margin * 3)
 
-        # --- Finalize (before bottom annotations) --- 
-        self._finalize_plot(fig, ax, title, x_label, y_label, bar_centers, bar_names, final_y_lim_01, False, None)
+        # Make sure the very highest annotation is below the final top limit
+        highest_annotation_y = np.max(values_np + err_upper + extra_headroom)
+        dyn_up = max(dyn_up, highest_annotation_y + self.text_margin)
 
-        # --- Bottom Annotations (after initial layout) --- 
+        # Honour user-provided fixed limits if any
+        final_low = (self.y_lim_lower / scale_factor) if self.y_lim_lower is not None else dyn_low
+        final_up  = (self.y_lim_upper / scale_factor) if self.y_lim_upper is not None else dyn_up
+        final_y_lim_01 = (final_low, final_up)
+
+        # ------------------------------------------------------------------
+        # 5) --- Finalise basic styling (labels, ticks, legend, etc.) -------
+        # ------------------------------------------------------------------
+        self._finalize_plot(
+            fig, ax,
+            title, x_label, y_label,
+            bar_centers, bar_names,
+            final_y_lim_01,
+            has_legend=False,
+            save_path=None,      # saving handled later
+        )
+
+        # ------------------------------------------------------------------
+        # 6) --- Add numeric annotations *after* y-limits are set ----------
+        # ------------------------------------------------------------------
+        scale = 100.0 if self.percentage else 1.0
+        for i, bar in enumerate(bars):
+            # Height of this bar in data units
+            height_01   = values_np[i]
+            error_01    = err_upper[i]
+            # Dynamic offset guarantees clearance over the cap + a little extra
+            annotation_y = height_01 + error_01 + extra_headroom
+            display_val  = height_01 * scale
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                annotation_y,
+                f"{display_val:.{self.annotation_digits}f}",
+                ha='center', va='bottom',
+                fontsize=self.bar_fontsize,
+            )
+
+        # ------------------------------------------------------------------
+        # 7) --- Optional bottom annotations (e.g. sample size) ------------
+        # ------------------------------------------------------------------
         if bottom_annotations:
-            plt.subplots_adjust(bottom=0.15) # Increase bottom margin preemptively
-            for i in range(n_bars):
-                ax.text(bar_centers[i], -0.12, bottom_annotations[i],
-                        transform=ax.get_xaxis_transform(),
-                        ha='center', va='top', fontsize=8, color='gray')
+            # Leave space under the x-axis if needed
+            fig.canvas.draw()  # ensure axis is realised
+            plt.subplots_adjust(
+                bottom=0.2 if len(max(bottom_annotations, key=len)) > 10 else 0.15
+            )
+            for i, txt in enumerate(bottom_annotations):
+                ax.text(
+                    bar_centers[i],
+                    -0.12,                       # below x-axis in axis-fraction coords
+                    txt,
+                    transform=ax.get_xaxis_transform(),
+                    ha='center', va='top',
+                    fontsize=8, color='gray'
+                )
 
-        # --- Save / Show ---
+        # ------------------------------------------------------------------
+        # 8) --- Persist to disk if requested ------------------------------
+        # ------------------------------------------------------------------
         if save_path:
             if isinstance(save_path, str):
                 try:
@@ -316,118 +506,198 @@ class MetricPlotter:
                     print(f"Plot saved to: {save_path}")
                 except Exception as e: print(f"Error saving plot: {e}")
             else: print(f"Warning: 'save_path' not a string.")
-
         plt.show()
 
 
-def plot_heatmap(data,
-                            row_names=None,
-                            col_names=None,
-                            title="Heatmap",
-                            xlabel="Columns",
-                            ylabel="Rows",
-                            cmap="viridis",
-                            annot=True,
-                            fmt=".2f",
-                            linewidths=0.5,
-                            linecolor='lightgray',
-                            cbar=False,
-                            figsize=(10, 8),
-                            xtick_rotation=45,
-                            ax=None,
-                            vmin=None,  # Added vmin
-                            vmax=None,  # Added vmax
-                            **kwargs):
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches # needed for handles
+from typing import List, Union, Tuple, Optional
+
+def lighten_color(color, amount=0.5):
     """
-    Generates an aesthetically attractive heatmap for m x n data.
+    Lightens the given color by mixing it with white.
 
     Args:
-        data (array-like or pd.DataFrame): The m x n matrix data to plot.
-        row_names (list-like, optional): Names for the rows (y-axis).
-            Ignored if 'data' is a pandas DataFrame. Defaults to None.
-        col_names (list-like, optional): Names for the columns (x-axis).
-            Ignored if 'data' is a pandas DataFrame. Defaults to None.
-        title (str, optional): Title for the plot. Defaults to "Heatmap".
-        xlabel (str, optional): Label for the x-axis. Defaults to "Columns".
-        ylabel (str, optional): Label for the y-axis. Defaults to "Rows".
-        cmap (str or Colormap, optional): The colormap to use.
-            Examples: 'viridis', 'plasma', 'inferno', 'magma', 'cividis' (sequential)
-                      'coolwarm', 'bwr', 'RdBu_r' (diverging)
-                      'YlGnBu', 'Blues', 'BuPu', 'Greens' (sequential multi-hue)
-            Defaults to "viridis".
-        annot (bool or array-like, optional): If True, write the data value in each cell.
-            If an array-like object matching 'data' shape, plot those values instead.
-            Defaults to True.
-        fmt (str, optional): String formatting code to use when annot is True.
-            Defaults to ".2f".
-        linewidths (float, optional): Width of the lines that will divide each cell.
-            Defaults to 0.5.
-        linecolor (str, optional): Color of the lines that will divide each cell.
-            Defaults to 'lightgray'.
-        cbar (bool, optional): Whether to draw a color bar. Defaults to True.
-        figsize (tuple, optional): Width, height in inches. Defaults to (10, 8).
-            Adjust based on the matrix size for better readability.
-        xtick_rotation (int or float, optional): Rotation angle for x-axis tick labels.
-            Defaults to 45. Set to 0 or None for no rotation.
-        ax (matplotlib.axes.Axes, optional): An existing Axes object to plot on.
-            If None, a new figure and axes are created. Defaults to None.
-        vmin (float, optional): The minimum value anchoring the colormap.
-            Defaults to None.
-        vmax (float, optional): The maximum value anchoring the colormap.
-            Defaults to None.
-        **kwargs: Additional keyword arguments passed directly to seaborn.heatmap().
+        color: An matplotlib-compatible color string (e.g., 'red', '#FF0000', (1, 0, 0)).
+        amount: The factor to lighten by. 0 means no change, 1 means white.
 
     Returns:
-        matplotlib.axes.Axes: The Axes object with the heatmap.
+        A lightened color in RGB tuple format.
     """
-    if isinstance(data, pd.DataFrame):
-        plot_data = data
-        _row_names = data.index.tolist() if row_names is None else row_names
-        _col_names = data.columns.tolist() if col_names is None else col_names
+    try:
+        c = mcolors.to_rgb(color)
+        c_white = mcolors.to_rgb('white')
+        # Linear interpolation towards white
+        return tuple(c_val + (white_val - c_val) * amount for c_val, white_val in zip(c, c_white))
+    except ValueError:
+        print(f"Warning: Could not parse color '{color}'. Using gray.")
+        try:
+            c_gray = mcolors.to_rgb('gray')
+            c_white = mcolors.to_rgb('white')
+            return tuple(c_val + (white_val - c_val) * amount for c_val, white_val in zip(c_gray, c_white))
+        except ValueError:
+            return (0.7, 0.7, 0.7) # Absolute fallback
+
+def plot_model_performance(
+    model_names: List[str],
+    scores: List[Union[float, Tuple[float, float]]],
+    colors: Optional[List[str]] = None,
+    title: str = "Model Performance Comparison",
+    ylabel: str = "Score",
+    display_border: bool = True,
+    lighten_factor: float = 0.4,
+    figsize: Tuple[int, int] = (10, 6),
+    text_offset_factor: float = 0.015,
+    # --- Labels for legend ---
+    # Tuple for dual scores (base, incremental), String for single score
+    legend_labels: Union[Tuple[str, str], str] = ('Base', 'Incremental'),
+    single_score_label_override: Optional[str] = None # New: Specify label for single scores explicitly
+):
+    """
+    Generates a bar plot comparing model performance, creating explicit legend
+    entries for each bar component.
+
+    Args:
+        model_names: A list of strings representing the names of the models.
+        scores: A list containing the performance scores. Each element can be:
+                - A single float (for models with one score).
+                - A tuple of two floats (low, high) for models with a range.
+        colors: An optional list of matplotlib-compatible color strings for each bar.
+                If None, default colors will be used. Must match the length of model_names.
+        title: The title of the plot.
+        ylabel: The label for the y-axis.
+        display_border: If False, hides the top and right plot borders (spines).
+                        If True (default), shows all borders.
+        lighten_factor: The factor used to lighten the color for the 'high' part
+                        of the bar when two scores are given (0=no lighten, 1=white).
+        figsize: The size of the figure (width, height) in inches.
+        text_offset_factor: A factor (relative to max score) to offset text labels
+                            vertically above the bars for better readability.
+        legend_labels: Describes the legend text.
+                       - If a tuple (e.g., ('Reasoning', 'Completion')), the first
+                         string labels the base part of dual scores, the second labels
+                         the incremental part.
+                       - If a string (e.g., 'Score'), it labels single-score bars.
+                         If dual scores exist, the second label from the default
+                         ('Base', 'Incremental') or a sensible guess might be used
+                         for the incremental part unless overridden.
+        single_score_label_override: Explicitly set the legend label for single-score
+                                     bars. If None, uses the rules described for
+                                     `legend_labels`. Useful when single scores represent
+                                     the same concept as the *incremental* part of dual scores.
+    """
+    num_models = len(model_names)
+    if len(scores) != num_models:
+        raise ValueError("Length of 'model_names' and 'scores' must be the same.")
+
+    if colors is None:
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        default_colors = prop_cycle.by_key()['color']
+        colors = [default_colors[i % len(default_colors)] for i in range(num_models)]
+    elif len(colors) != num_models:
+        raise ValueError("Length of 'colors' must match 'model_names' if provided.")
+
+    # Determine legend labels based on input
+    if isinstance(legend_labels, tuple) and len(legend_labels) == 2:
+        base_label, incremental_label = legend_labels
+        single_label = single_score_label_override if single_score_label_override is not None else incremental_label # Default single to incremental if override not set
+    elif isinstance(legend_labels, str):
+        base_label = "Base" # Default if only single label provided
+        incremental_label = "Incremental" # Default if only single label provided
+        single_label = single_score_label_override if single_score_label_override is not None else legend_labels
     else:
-        plot_data = pd.DataFrame(data, index=row_names, columns=col_names)
-        _row_names = plot_data.index.tolist()
-        _col_names = plot_data.columns.tolist()
+        raise ValueError("legend_labels must be a tuple of two strings or a single string.")
 
-    if ax is None:
-        fig, current_ax = plt.subplots(figsize=figsize)
-    else:
-        current_ax = ax
-        fig = current_ax.figure
 
-    sns.heatmap(plot_data,
-                annot=annot,
-                fmt=fmt,
-                cmap=cmap,
-                linewidths=linewidths,
-                linecolor=linecolor,
-                cbar=cbar,
-                ax=current_ax,
-                xticklabels=True,
-                yticklabels=True,
-                vmin=vmin,  # Use provided vmin
-                vmax=vmax,  # Use provided vmax
-                **kwargs)
+    x_pos = np.arange(num_models)
+    max_score = 0
+    legend_handles = [] # List to store patch handles for the legend
+    legend_texts = [] # List to store text labels for the legend
 
-    current_ax.set_title(title, fontsize=14, fontweight='bold')
-    current_ax.set_xlabel(xlabel, fontsize=12)
-    current_ax.set_ylabel(ylabel, fontsize=12)
+    plt.figure(figsize=figsize)
+    ax = plt.gca()
 
-    current_ax.set_xticks(np.arange(len(_col_names)) + 0.5)
-    current_ax.set_yticks(np.arange(len(_row_names)) + 0.5)
-    current_ax.set_xticklabels(_col_names)
-    current_ax.set_yticklabels(_row_names)
+    for i in range(num_models):
+        score = scores[i]
+        color = colors[i]
 
-    if xtick_rotation is not None:
-         plt.setp(current_ax.get_xticklabels(), rotation=xtick_rotation, ha="right",
-                  rotation_mode="anchor")
+        # Determine max_score for plot limits and text offset
+        current_max = 0
+        if isinstance(score, (tuple, list)):
+             current_max = score[1] if len(score) > 1 else (score[0] if len(score) > 0 else 0)
+        else:
+             current_max = score
+        # Ensure current_max is a number before comparison
+        if isinstance(current_max, (int, float)) and current_max > max_score:
+             max_score = current_max
 
-    plt.setp(current_ax.get_yticklabels(), rotation=0)
+        text_offset = max_score * text_offset_factor if max_score > 0 else 0.01
 
-    if ax is None:
-         try:
-             fig.tight_layout()
-         except ValueError:
-             print("Warning: tight_layout failed. Plot elements might overlap.")
+        if isinstance(score, (tuple, list)) and len(score) == 2:
+            low_score, high_score = score
+            if low_score > high_score:
+                 print(f"Warning: Model '{model_names[i]}', low score ({low_score}) > high score ({high_score}). Swapping.")
+                 low_score, high_score = high_score, low_score
 
-    return current_ax
+            if low_score < 0 or high_score < 0:
+                print(f"Warning: Model '{model_names[i]}' has negative scores.")
+
+            # Plot base bar - NO automatic label
+            bar1 = ax.bar(x_pos[i], low_score, color=color)
+            # Add handle and label for legend manually
+            legend_handles.append(mpatches.Patch(color=color))
+            legend_texts.append(base_label)
+
+            # Plot incremental bar - NO automatic label
+            if high_score > low_score:
+                lighter_c = lighten_color(color, amount=lighten_factor)
+                bar2 = ax.bar(x_pos[i], high_score - low_score, bottom=low_score, color=lighter_c)
+                # Add handle and label for legend manually
+                legend_handles.append(mpatches.Patch(color=lighter_c))
+                legend_texts.append(incremental_label)
+
+            # Add text labels for scores
+            if low_score > 0:
+                ax.text(x_pos[i], low_score + text_offset, f"{low_score:.2f}", ha='center', va='bottom', fontsize=9)
+            ax.text(x_pos[i], high_score + text_offset, f"{high_score:.2f}", ha='center', va='bottom', fontsize=9)
+
+        else:
+            # Single score provided
+            single_score = float(score)
+            if single_score < 0:
+                 print(f"Warning: Model '{model_names[i]}' has negative score.")
+
+            # Plot single bar - NO automatic label
+            bar_single = ax.bar(x_pos[i], single_score, color=color)
+            # Add handle and label for legend manually
+            legend_handles.append(mpatches.Patch(color=color))
+            legend_texts.append(single_label)
+
+            # Add text label
+            ax.text(x_pos[i], single_score + text_offset, f"{single_score:.2f}", ha='center', va='bottom', fontsize=9)
+
+    # --- Plot Customization ---
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(model_names, rotation=0)
+
+    ax.set_ylim(bottom=0, top=max_score * 1.15)
+
+    if not display_border:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    # --- Add Explicit Legend ---
+    if legend_handles: # Only add legend if there's something to show
+        ax.legend(handles=legend_handles, labels=legend_texts,
+                  bbox_to_anchor=(0.5, 1.05),  # 将图例放在轴的上方中央
+              loc='lower center',         # 将图例的下边缘中心与 bbox_to_anchor 对齐
+              borderaxespad=0.,
+              ncol=3)
+
+    # Optional grid
+    # ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+

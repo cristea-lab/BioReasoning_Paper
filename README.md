@@ -7,6 +7,7 @@ Code to fully reproduce the experiments from **Wang *****et al.***** (2025)** 
 ```
 Scripts/
 ├── api_calls/               # Helpers to query DeepSeek‑R1, GPT‑4o and DeepSeek‑V3
+├── c2s-scale/               # Baseline: c2s-scale inference
 ├── data_generation/         # Exactly how we download, sample, and format given public data
 ├── prompt_generations/      # Generate ranked marker‑gene prompts from .h5ad or clustering results
 ├── scTab/                   # Baseline: scTab inference
